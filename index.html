@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EcoTwin Global</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--deep:#0b3d3a;--leaf:#2e8b57;--water:#1b6ca8;--mist:#eef6f4;--ink:#17302e;--line:#d3e3df;--white:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--mist)}
+.hero{background:linear-gradient(120deg,var(--deep),var(--water));color:#fff;padding:28px 20px 22px;text-align:center}
+.hero h1{margin:0;font-size:2.2rem;letter-spacing:.5px}
+.hero p.tag{margin:6px 0 4px;font-size:1.05rem;opacity:.95}
+.hero p.intro{margin:0 auto 16px;max-width:720px;font-size:.92rem;opacity:.85}
+.sbar{position:relative;max-width:760px;margin:0 auto;display:flex;gap:8px}
+.sbar input{flex:1;padding:13px 16px;border-radius:10px;border:0;font-size:1rem}
+button{cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:600;background:var(--leaf);color:#fff;font-size:.9rem}
+button.alt{background:var(--white);color:var(--deep);border:1px solid var(--line)}
+button.on{background:var(--water);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffd54a;outline-offset:2px}
+#sug{position:absolute;top:100%;left:0;right:110px;background:#fff;color:var(--ink);border-radius:10px;margin-top:4px;text-align:left;z-index:1000;box-shadow:0 8px 24px #0003;overflow:hidden}
+#sug div{padding:9px 14px;cursor:pointer;font-size:.9rem;border-bottom:1px solid var(--line)}
+#sug div:hover{background:var(--mist)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.tools label{font-size:.85rem}
+.tools select{padding:8px;border-radius:8px;border:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.5fr) minmax(280px,1fr);gap:12px;padding:12px;height:calc(100vh - 150px);min-height:620px}
+.col{background:#fff;border-radius:14px;border:1px solid var(--line);overflow:auto;padding:12px}
+.col h2{margin:0 0 10px;font-size:1.05rem;color:var(--deep)}
+#map{height:100%;min-height:420px;border-radius:14px;border:1px solid var(--line)}
+.mid{display:flex;flex-direction:column;gap:8px}
+.mid .box{background:#fff;border-radius:14px;border:1px solid var(--line);padding:10px}
+.card{border:1px solid var(--line);border-left-width:6px;border-radius:10px;padding:10px;margin-bottom:10px;font-size:.88rem}
+.card h3{margin:0 0 4px;font-size:.98rem}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;color:#fff;font-size:.75rem;font-weight:700}
+.kind{font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:4px;color:#456}
+.muted{color:#5b7773;font-size:.8rem}
+.bar{height:9px;border-radius:6px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;margin:6px 0 2px}
+.sol h4{margin:6px 0 2px;font-size:.82rem;color:var(--water)}
+.sol ul{margin:0 0 4px 18px;padding:0}
+details{margin-bottom:8px}
+summary{cursor:pointer;font-weight:600}
+.warn{background:#fff8e1;border:1px solid #f1d98a;border-radius:8px;padding:8px;font-size:.8rem;margin-bottom:10px}
+dialog{border-radius:14px;border:1px solid var(--line);max-width:420px;width:92%}
+dialog textarea,dialog select{width:100%;margin:6px 0;padding:8px;border:1px solid var(--line);border-radius:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:.78rem}
+.legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+@media(max-width:980px){.grid{grid-template-columns:1fr;height:auto}#map{height:420px}.col{max-height:none}.mid{order:-1}}
+@media print{.hero,.tools,#map,.mid .box:not(#chartBox),dialog{display:none!important}.grid{display:block;height:auto}.col{overflow:visible;border:0}}
+@media(prefers-reduced-motion:no-preference){.card{animation:in .35s ease-out}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>EcoTwin Global</h1>
+  <p class="tag">Every Location Has an Environmental Story. Discover It. Understand It. Improve It.</p>
+  <p class="intro">Pick any place on Earth. EcoTwin shows the environmental conditions we can verify from open data, how risky they look, and practical steps that people, councils and governments can take.</p>
+  <div class="sbar">
+    <input id="q" autocomplete="off" placeholder="Search a country, state, district, city, village or any location..." aria-label="Search location">
+    <button id="go">Explore Environment</button>
+    <div id="sug" hidden></div>
+  </div>
+</header>
+
+<div class="tools">
+  <label for="layer">Map layer:</label>
+  <select id="layer">
+    <option value="overall">Overall risk</option><option value="air">Air</option><option value="heat">Temperature</option>
+    <option value="rain">Rainfall</option><option value="flood">Flood / water</option><option value="quake">Earthquakes</option>
+  </select>
+  <button class="alt" id="draw">Draw small area</button>
+  <button class="alt" id="gps">Use my location</button>
+  <label><input type="checkbox" id="demo"> Demo mode (sample data)</label>
+  <button class="alt" id="report">Report a problem</button>
+  <button class="alt" id="pdf">Download PDF report</button>
+  <span class="legend"><span><i style="background:#d63b3b"></i>Critical</span><span><i style="background:#f08a24"></i>High</span><span><i style="background:#e6c229"></i>Moderate</span><span><i style="background:#2e9e5b"></i>Low</span><span><i style="background:#8a949c"></i>No data</span></span>
+</div>
+
+<main class="grid">
+  <section class="col" aria-label="Environmental problems">
+    <h2>Environmental problems</h2>
+    <div id="left"><p class="muted">Search or click the map to begin.</p></div>
+  </section>
+  <section class="mid">
+    <div id="map"></div>
+    <div class="box" id="chartBox" hidden><canvas id="chart" height="110"></canvas></div>
+  </section>
+  <section class="col" aria-label="Solutions">
+    <h2>AI-based solutions</h2>
+    <div id="right"><p class="muted">Suggestions appear here after a location is analysed.</p></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <h3>Report an environmental problem</h3>
+  <p class="muted">Citizen reports are shown as unverified. They are saved only in this browser until you connect a backend.</p>
+  <select id="rcat"><option>Illegal dumping</option><option>Water pollution</option><option>Air / burning</option><option>Tree felling</option><option>Flooding</option><option>Other</option></select>
+  <textarea id="rtxt" rows="3" placeholder="What did you see?"></textarea>
+  <input type="file" id="rimg" accept="image/*">
+  <p class="muted" id="rgps"></p>
+  <button id="rsave">Save report</button> <button class="alt" id="rclose">Cancel</button>
+</dialog>
+
+<script>
+const $=s=>document.querySelector(s);
+const COL={Low:'#2e9e5b',Moderate:'#e6c229',High:'#f08a24',Critical:'#d63b3b',None:'#8a949c'};
+const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
+const sevFromScore=s=>s==null?'None':s<25?'Low':s<50?'Moderate':s<75?'High':'Critical';
+
+/* ---------- Map ---------- */
+const map=L.map('map').setView([20,0],2);
+const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery &copy; Esri'});
+const topo=L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'&copy; OpenTopoMap, OSM'});
+L.control.layers({'Street':osm,'Satellite':sat,'Terrain':topo}).addTo(map);
+let marker=null,area=null,drawing=false,corner=null,current=null,chart=null;
+const reports=JSON.parse(localStorage.getItem('eco_reports')||'[]');
+function showReports(){reports.forEach(r=>L.circleMarker([r.lat,r.lon],{radius:7,color:'#7b3fa0',fillOpacity:.8}).addTo(map).bindPopup(`<b>${r.cat}</b> (user-reported, unverified)<br>${r.txt||''}<br>${r.img?`<img src="${r.img}" width="160">`:''}`))}
+showReports();
+[['Hyderabad',17.385,78.487],['Delhi',28.61,77.21],['Mumbai',19.08,72.88],['Vizianagaram',18.11,83.4],['London',51.51,-0.13],['New York',40.71,-74],['Nairobi',-1.29,36.82],['Sydney',-33.87,151.21],['São Paulo',-23.55,-46.63],['Beijing',39.9,116.4]]
+ .forEach(([n,a,o])=>L.circleMarker([a,o],{radius:5,color:'#1b6ca8',fillOpacity:.7}).addTo(map).bindTooltip(n).on('click',e=>{L.DomEvent.stopPropagation(e);map.setView([a,o],10);analyse(a,o,n)}));
+if(/^#-?[\d.]+,-?[\d.]+$/.test(location.hash)){const[a,o]=location.hash.slice(1).split(',').map(Number);map.setView([a,o],10);reverse(a,o).then(n=>analyse(a,o,n))}
+
+map.on('click',async e=>{
+  if(drawing){
+    if(!corner){corner=e.latlng;return}
+    const b=L.latLngBounds(corner,e.latlng);corner=null;drawing=false;$('#draw').classList.remove('on');
+    if(area)map.removeLayer(area);area=L.rectangle(b,{color:'#1b6ca8',weight:2}).addTo(map);
+    const km2=(b.getNorth()-b.getSouth())*111*(b.getEast()-b.getWest())*111*Math.cos(b.getCenter().lat*Math.PI/180);
+    analyse(b.getCenter().lat,b.getCenter().lng,`Custom area (~${Math.abs(km2).toFixed(1)} km²)`);return;
+  }
+  const {lat,lng}=e.latlng;analyse(lat,lng,await reverse(lat,lng));
+});
+$('#draw').onclick=()=>{drawing=!drawing;corner=null;$('#draw').classList.toggle('on',drawing);if(drawing)alert('Click two opposite corners on the map to draw the area.')};
+$('#gps').onclick=()=>navigator.geolocation.getCurrentPosition(async p=>{map.setView([p.coords.latitude,p.coords.longitude],12);analyse(p.coords.latitude,p.coords.longitude,await reverse(p.coords.latitude,p.coords.longitude))},()=>alert('Location permission denied.'));
+
+/* ---------- Search (Nominatim: respect usage policy, ~1 request/sec) ---------- */
+let t=null;
+$('#q').addEventListener('input',()=>{
+  clearTimeout(t);const q=$('#q').value.trim();if(q.length<3){$('#sug').hidden=true;return}
+  t=setTimeout(async()=>{
+    try{
+      const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q='+encodeURIComponent(q))).json();
+      $('#sug').innerHTML='';r.forEach(x=>{const d=document.createElement('div');d.textContent=x.display_name;d.onclick=()=>pick(x);$('#sug').appendChild(d)});
+      $('#sug').hidden=!r.length;
+    }catch{ $('#sug').hidden=true }
+  },600);
+});
+$('#go').onclick=async()=>{
+  const q=$('#q').value.trim();if(!q)return;
+  try{const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q))).json();
+    r[0]?pick(r[0]):alert('Location not found. Try a different spelling.')}catch{alert('Search service unavailable. Click the map instead.')}
+};
+function pick(x){
+  $('#sug').hidden=true;$('#q').value=x.display_name;
+  const b=x.boundingbox.map(Number);map.fitBounds([[b[0],b[2]],[b[1],b[3]]]);
+  analyse(+x.lat,+x.lon,x.display_name);
+  document.querySelector('.tools').scrollIntoView({behavior:'smooth'});
+}
+async function reverse(lat,lon){
+  try{const r=await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&lat=${lat}&lon=${lon}`)).json();return r.display_name||`${lat.toFixed(3)}, ${lon.toFixed(3)}`}
+  catch{return `${lat.toFixed(3)}, ${lon.toFixed(3)}`}
+}
+
+/* ---------- Data (all endpoints from Open-Meteo public docs) ---------- */
+const j=u=>fetch(u).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
+const iso=d=>d.toISOString().slice(0,10);
+async function loadData(lat,lon){
+  const end=new Date(Date.now()-7*864e5),start=new Date(+end-29*864e5);
+  const pe=new Date(end);pe.setFullYear(pe.getFullYear()-10);const ps=new Date(start);ps.setFullYear(ps.getFullYear()-10);
+  const H=(s,e)=>`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${iso(s)}&end_date=${iso(e)}&daily=temperature_2m_mean`;
+  const res=await Promise.allSettled([
+    j(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature&daily=temperature_2m_max,precipitation_sum&forecast_days=7&timezone=auto`),
+    j(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone,carbon_monoxide&timezone=auto`),
+    j(`https://flood-api.open-meteo.com/v1/flood?latitude=${lat}&longitude=${lon}&daily=river_discharge,river_discharge_mean&forecast_days=7`),
+    j(H(start,end)),j(H(ps,pe)),
+    j(`https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=300&minmagnitude=3&orderby=magnitude&limit=20&starttime=${iso(new Date(Date.now()-30*864e5))}`)
+  ]);
+  const names=['Weather','Air quality','Flood model','Temperature history','Temperature history','Earthquakes (USGS)'];
+  return {wx:res[0].value,aq:res[1].value,fl:res[2].value,h1:res[3].value,h0:res[4].value,eq:res[5].value,fail:res.map((x,i)=>x.status==='rejected'?names[i]:null).filter(Boolean)};
+}
+const DEMO={wx:{current:{time:'DEMO',temperature_2m:41,apparent_temperature:45},daily:{time:['d1','d2','d3','d4','d5','d6','d7'],temperature_2m_max:[41,42,40,39,43,42,40],precipitation_sum:[0,0,2,18,35,5,0]}},
+ aq:{current:{time:'DEMO',us_aqi:165,pm2_5:78,pm10:140,nitrogen_dioxide:40,sulphur_dioxide:12,ozone:60,carbon_monoxide:480}},
+ fl:{daily:{time:[],river_discharge:[120,160,260,380,420,300,200],river_discharge_mean:[100,100,100,100,100,100,100]}},
+ h1:{daily:{temperature_2m_mean:Array(30).fill(33)}},h0:{daily:{temperature_2m_mean:Array(30).fill(31.5)}}};
+const avg=a=>a.filter(v=>v!=null).reduce((s,v)=>s+v,0)/a.filter(v=>v!=null).length;
+
+/* ---------- Analysis ---------- */
+function analyseData(d,demo){
+  const P=[],tag=demo?'DEMO sample data':'';
+  // Air
+  if(d.aq&&d.aq.current&&d.aq.current.us_aqi!=null){
+    const c=d.aq.current,s=clamp(c.us_aqi/300*100);
+    P.push({key:'air',name:'Air pollution',score:s,kind:demo?'Demo':'Modelled estimate',
+      status:`US AQI ${c.us_aqi}`,value:`PM2.5 ${c.pm2_5} µg/m³, PM10 ${c.pm10} µg/m³, NO₂ ${c.nitrogen_dioxide}, SO₂ ${c.sulphur_dioxide}, O₃ ${c.ozone}, CO ${c.carbon_monoxide} µg/m³`,
+      time:c.time,causes:'Vehicles, industry, burning, dust. Cause cannot be confirmed from this data alone.',
+      hist:'Not available in this build (needs OpenAQ history).',source:'Open-Meteo Air Quality API (CAMS model). Not a ground sensor reading.'});
+  }
+  // Heat + climate
+  if(d.wx&&d.wx.daily){
+    const mx=Math.max(...d.wx.daily.temperature_2m_max),s=clamp((mx-25)/20*100);
+    P.push({key:'heat',name:'Extreme heat',score:s,kind:demo?'Demo':'Forecast',status:`Highest forecast temperature ${mx} °C (next 7 days)`,
+      value:`Now ${d.wx.current.temperature_2m} °C, feels like ${d.wx.current.apparent_temperature} °C`,time:d.wx.current.time,
+      causes:'Weather pattern, urban heat island, low tree cover (not measured here).',hist:'See climate change card.',source:'Open-Meteo Forecast API'});
+    const rs=d.wx.daily.precipitation_sum.reduce((a,b)=>a+b,0),r=clamp(rs/150*100);
+    P.push({key:'rain',name:'Heavy rainfall',score:r,kind:demo?'Demo':'Forecast',status:`${rs.toFixed(1)} mm expected over 7 days`,value:`Wettest day ${Math.max(...d.wx.daily.precipitation_sum)} mm`,
+      time:d.wx.current.time,causes:'Weather forecast. Forecasts can change.',hist:'Not available in this build.',source:'Open-Meteo Forecast API'});
+  }
+  // Climate change (history compare)
+  if(d.h1&&d.h0&&d.h1.daily&&d.h0.daily){
+    const a=avg(d.h1.daily.temperature_2m_mean),b=avg(d.h0.daily.temperature_2m_mean),diff=a-b;
+    P.push({key:'climate',name:'Temperature change',score:clamp(diff/3*100),kind:demo?'Demo':'Historical reanalysis',
+      status:`${diff>=0?'+':''}${diff.toFixed(1)} °C vs same 30 days 10 years ago`,value:`Recent ${a.toFixed(1)} °C, then ${b.toFixed(1)} °C (daily mean)`,
+      time:'Last 30 days (archive lags ~5 days)',causes:'One year-to-year gap mixes natural variation with long-term warming. It is not proof of climate change by itself.',
+      hist:'10-year single-window comparison only.',source:'Open-Meteo Historical Weather API (ERA5)'});
+  }
+  // Flood
+  if(d.fl&&d.fl.daily&&d.fl.daily.river_discharge){
+    const q=d.fl.daily.river_discharge.filter(v=>v!=null),m=d.fl.daily.river_discharge_mean.filter(v=>v!=null);
+    if(q.length&&m.length&&avg(m)>0){
+      const ratio=Math.max(...q)/avg(m);
+      P.push({key:'flood',name:'Flooding (river discharge)',score:clamp((ratio-1)/5*100),kind:demo?'Demo':'Modelled forecast',
+        status:`Peak discharge ${ratio.toFixed(1)}× the usual level`,value:`Peak ${Math.max(...q).toFixed(0)} m³/s`,time:'Next 7 days',
+        causes:'Rainfall upstream. Model resolution is ~5 km and may miss small streams.',hist:'Not available in this build.',source:'Open-Meteo Flood API (GloFAS)'});
+    }
+  }
+  if(d.eq&&d.eq.features){const f=d.eq.features,m=f.length?f[0].properties.mag:0;
+    P.push({key:'quake',name:'Earthquakes (within 300 km)',score:f.length?clamp((m-3)/4*100):0,kind:demo?'Demo':'Measured event record',
+      status:f.length?`${f.length} quake(s) of M3+ in 30 days; strongest M${m}`:'No M3+ earthquakes in the last 30 days',value:f.length?f[0].properties.place:'None recorded',
+      time:'Last 30 days',causes:'Tectonic activity. It cannot be prevented, so preparedness matters.',hist:'30-day window only.',source:'USGS Earthquake Catalog API'})}
+  return P.map(p=>({...p,sev:sevFromScore(p.score)}));
+}
+const UNAVAILABLE=[
+ ['Water pollution','CPCB / India-WRIS data pages (no open API confirmed)'],['Water scarcity / groundwater','CGWB reports (download datasets)'],
+ ['Plastic & solid waste','No global open dataset; use citizen reports'],['Deforestation','Global Forest Watch (needs API key, backend)'],
+ ['Soil pollution & erosion','Needs local soil surveys'],['Biodiversity loss','GBIF / local surveys'],['Noise pollution','No open dataset'],
+ ['Coastal pollution','NCCR reports'],['Industrial & agricultural pollution','CPCB / state PCB records'],['Wildfires & disasters','NASA FIRMS (needs free MAP_KEY, backend)']];
+
+const SOL={
+ air:{why:'Fine particles and gases harm lungs and hearts, especially for children and older people.',benefit:'Lower exposure and fewer respiratory illnesses.',res:'Tree saplings, public-transport funding, emission monitors.',
+  c:['Avoid outdoor exercise when AQI is high; use a mask rated N95/FFP2.','Use public transport or share rides.','Do not burn waste.'],
+  l:['Plant native street trees and green buffers.','Control construction dust and open burning.','Install low-cost air sensors for ground truth.'],
+  g:['Enforce industrial emission limits.','Expand electric and public transport.','Publish open hourly air data.']},
+ heat:{why:'Extreme heat causes heat stroke and strains power and water supply.',benefit:'Fewer heat illnesses and cooler neighbourhoods.',res:'Shade structures, cool roofs, water points, warning systems.',
+  c:['Drink water often and avoid outdoor work at midday.','Check on elderly neighbours.','Use light-coloured roofs and curtains.'],
+  l:['Open cooling shelters and water points.','Plant shade trees; protect ponds and parks.','Adjust school and work hours during heat alerts.'],
+  g:['Adopt a heat action plan with early warnings.','Support cool-roof programmes.','Protect outdoor workers by law.']},
+ rain:{why:'Heavy rain can overload drains and trigger floods or landslides.',benefit:'Less damage and better water storage.',res:'Drain clearing crews, rainwater tanks, recharge pits.',
+  c:['Clear drains near your home; prepare an emergency kit.','Harvest rooftop rainwater.','Follow official weather warnings.'],
+  l:['De-silt drains before the rainy season.','Build recharge pits and retention ponds.','Map low-lying areas for evacuation.'],
+  g:['Issue and relay IMD / national alerts.','Fund stormwater drainage upgrades.','Restrict building on flood plains.']},
+ climate:{why:'Rising temperatures affect health, crops and water demand.',benefit:'Lower emissions and a more resilient community.',res:'Energy-efficiency upgrades, tree planting, planning staff.',
+  c:['Cut energy use; choose efficient appliances.','Plant trees and avoid waste burning.'],
+  l:['Create a local climate-adaptation plan.','Promote rooftop solar and efficient street lighting.'],
+  g:['Set and track emission targets.','Fund climate-resilient farming and infrastructure.']},
+ quake:{why:'Strong earthquakes can damage buildings and cut services.',benefit:'Fewer injuries and faster recovery.',res:'Building inspections, drills, emergency kits.',
+  c:['Practise drop, cover and hold on; secure heavy furniture.','Keep a go-bag and know your assembly point.'],
+  l:['Inspect schools, hospitals and old buildings.','Run community drills.'],
+  g:['Enforce seismic building codes.','Publish official hazard maps and alerts.']},
+ flood:{why:'Rivers above normal levels can flood homes, roads and farmland.',benefit:'Protects lives and property.',res:'River gauges, drainage works, evacuation plans.',
+  c:['Know your evacuation route; move valuables upstairs.','Do not cross flooded roads.'],
+  l:['Clear canals and protect wetlands that hold water.','Set up community early-warning contacts.'],
+  g:['Maintain embankments and river gauges.','Share official flood warnings (e.g. CWC, state authorities).']}
+};
+
+/* ---------- Render ---------- */
+async function analyse(lat,lon,name){
+  const demo=$('#demo').checked;
+  $('#left').innerHTML='<p class="muted">Loading data…</p>';$('#right').innerHTML='';
+  if(marker)map.removeLayer(marker);
+  if(!area||!String(name).startsWith('Custom')){if(area){map.removeLayer(area);area=null}}
+  let d;
+  try{d=demo?DEMO:await loadData(lat,lon)}catch(e){d={}}
+  const P=analyseData(d,demo);
+  current={lat,lon,name,P,demo,fail:d.fail||[],time:new Date().toLocaleString()};
+  history.replaceState(null,'',`#${lat.toFixed(4)},${lon.toFixed(4)}`);
+  paintMarker();render();drawChart(d);
+}
+function layerSev(){
+  const l=$('#layer').value,P=current.P;
+  if(l==='overall'){const sc=cats(P).map(c=>c[1]).filter(v=>v!=null);return sc.length?sevFromScore(avg(sc)):'None'}
+  const m=l;
+  const p=P.find(x=>x.key===m);return p?p.sev:'None';
+}
+function paintMarker(){
+  if(!current)return;if(marker)map.removeLayer(marker);
+  const c=COL[layerSev()];
+  marker=L.layerGroup([L.circle([current.lat,current.lon],{radius:4000,color:c,fillColor:c,fillOpacity:.25}),
+    L.circleMarker([current.lat,current.lon],{radius:10,color:'#fff',weight:2,fillColor:c,fillOpacity:1})]).addTo(map);
+  marker.getLayers()[1].bindPopup(`<b>${current.name}</b><br>${layerSev()} risk (${$('#layer').selectedOptions[0].text})`).openPopup();
+  if(map.getZoom()<8)map.setView([current.lat,current.lon],10);
+}
+$('#layer').onchange=paintMarker;
+
+function cats(P){const g=(ks,mx)=>{const v=P.filter(p=>ks.includes(p.key)).map(p=>p.score);return v.length?(mx?Math.max(...v):avg(v)):null};
+ return [['Air quality',g(['air'])],['Climate and heat',g(['heat','climate'])],['Natural disaster exposure',g(['flood','rain','quake'],1)],['Water condition',null],['Land and soil',null],['Forest and biodiversity',null],['Waste and pollution',null]]}
+function render(){
+  const {P,name,demo,time}=current;
+  const CS=cats(P),sc=CS.map(c=>c[1]).filter(v=>v!=null),overall=sc.length?avg(sc):null,os=sevFromScore(overall);
+  let h=`<div class="warn"><b>${name}</b>${current.fail.length?'<br><b>Could not load:</b> '+[...new Set(current.fail)].join(', '):''}<br>${demo?'<b>DEMO MODE:</b> all numbers below are sample data, not real.':'Data fetched '+time+'. Values marked "Modelled" or "Forecast" are not ground measurements.'}</div>`;
+  h+=`<div class="card" style="border-left-color:${COL[os]}"><h3>Environmental Risk Index: ${overall==null?'Data unavailable':overall.toFixed(0)+'/100'} <span class="pill" style="background:${COL[os]}">${os==='None'?'No data':os}</span></h3>
+  <div class="muted">Average of the ${sc.length} of 7 categories that have data. Climate and heat = mean of heat and temperature change. Disaster exposure = the highest of flood, rain and earthquake (the worst hazard counts). Each score is scaled 0–100 on its own: Air = US AQI÷300; Heat = (peak °C − 25)÷20; Rain = 7-day mm÷150; Flood = (peak÷mean discharge − 1)÷5; Temperature change = °C difference÷3; Earthquake = (strongest magnitude − 3)÷4. Thresholds: &lt;25 Low, &lt;50 Moderate, &lt;75 High, else Critical. These scalings are simple demonstration rules, not official standards.</div>`;
+  CS.forEach(([n,v])=>{h+=`<div class="row"><span>${n}</span><span>${v!=null?v.toFixed(0):'Data unavailable'}</span></div><div class="bar"><i style="width:${v||0}%;background:${COL[sevFromScore(v)]}"></i></div>`});
+  h+='</div>';
+  P.forEach(p=>{h+=`<div class="card" style="border-left-color:${COL[p.sev]}"><h3>${p.name} <span class="pill" style="background:${COL[p.sev]}">${p.sev}</span><span class="kind">${p.kind}</span></h3>
+   <b>${p.status}</b><br>${p.value}<br><span class="muted">Data time: ${p.time}</span><br><b>Possible causes:</b> ${p.causes}<br><b>History:</b> ${p.hist}<br><span class="muted">Source: ${p.source}</span></div>`});
+  h+='<h2>Data unavailable</h2><p class="muted">No verified data is loaded for these. They are not claimed as problems or as safe.</p>';
+  UNAVAILABLE.forEach(([n,s])=>{h+=`<div class="card" style="border-left-color:${COL.None}"><h3>${n}</h3><span class="muted">Data unavailable. Possible source: ${s}</span></div>`});
+  $('#left').innerHTML=h;
+  let r='<div class="warn">These are AI-style suggestions generated from rules, not official government instructions.</div>';
+  P.slice().sort((a,b)=>b.score-a.score).forEach(p=>{const s=SOL[p.key];if(!s)return;
+    r+=`<details ${p.score>=25?'open':''}><summary>${p.name} (${p.sev})</summary><div class="sol">
+     <p><b>Why:</b> ${s.why}<br><b>Benefit:</b> ${s.benefit}<br><b>Resources:</b> ${s.res}</p>
+     <h4>Citizens</h4><ul>${s.c.map(x=>`<li>${x}</li>`).join('')}</ul>
+     <h4>Local authorities</h4><ul>${s.l.map(x=>`<li>${x}</li>`).join('')}</ul>
+     <h4>Government departments</h4><ul>${s.g.map(x=>`<li>${x}</li>`).join('')}</ul></div></details>`});
+  if(!P.length)r+='<p class="muted">No data could be loaded for this location. Check your internet connection or try Demo mode.</p>';
+  $('#right').innerHTML=r;
+}
+function drawChart(d){
+  if(!d.wx||!d.wx.daily){$('#chartBox').hidden=true;return}
+  $('#chartBox').hidden=false;if(chart)chart.destroy();
+  const dl=d.wx.daily;
+  chart=new Chart($('#chart'),{data:{labels:dl.time,datasets:[
+    {type:'line',label:'Max temp °C (forecast)',data:dl.temperature_2m_max,borderColor:'#d63b3b',yAxisID:'y'},
+    {type:'bar',label:'Rain mm (forecast)',data:dl.precipitation_sum,backgroundColor:'#1b6ca8',yAxisID:'y1'}]},
+    options:{responsive:true,scales:{y:{position:'left'},y1:{position:'right',grid:{drawOnChartArea:false}}}}});
+}
+
+/* ---------- Report, PDF ---------- */
+$('#demo').onchange=()=>current&&analyse(current.lat,current.lon,current.name);
+$('#pdf').onclick=()=>current?window.print():alert('Select a location first.');
+$('#report').onclick=()=>{
+  if(!current){alert('Select a location first (search, click the map, or use my location).');return}
+  $('#rgps').textContent=`GPS: ${current.lat.toFixed(5)}, ${current.lon.toFixed(5)}`;$('#dlg').showModal();
+};
+$('#rclose').onclick=()=>$('#dlg').close();
+$('#rsave').onclick=()=>{
+  const f=$('#rimg').files[0],save=img=>{
+    const r={lat:current.lat,lon:current.lon,cat:$('#rcat').value,txt:$('#rtxt').value,img,time:new Date().toISOString()};
+    reports.push(r);try{localStorage.setItem('eco_reports',JSON.stringify(reports))}catch{alert('Photo too large to store locally; saved without photo.');r.img=null}
+    L.circleMarker([r.lat,r.lon],{radius:7,color:'#7b3fa0',fillOpacity:.8}).addTo(map).bindPopup(`<b>${r.cat}</b> (user-reported, unverified)<br>${r.txt}`);
+    $('#dlg').close();$('#rtxt').value='';$('#rimg').value='';
+  };
+  if(f){const fr=new FileReader();fr.onload=()=>save(fr.result);fr.readAsDataURL(f)}else save(null);
+};
+</script>
+</body>
+</html>
